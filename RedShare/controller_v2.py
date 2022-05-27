@@ -37,7 +37,7 @@ class MainWindow_controller(QtWidgets.QMainWindow):
         # --- setup 進度條 ---
         self.ui.progressBar.setValue(0)
         # --- execute program, connect "return button" ---
-        self.ui.pushButton_return.clicked.connect(self.execute)
+        self.ui.pushButton_return.clicked.connect(self.executeLoading)
 
     # 開啟/抓取使用者選擇的json file
     def openOauthFile(self):
@@ -74,12 +74,12 @@ class MainWindow_controller(QtWidgets.QMainWindow):
         if not self.fileList:
             self.ui.textEdit_output.setText('\n 請先開啟oauth file')
         else:
-            self.ui.textEdit_output.setText('\n登入 Oauth 驗證初始化作業...')
+            self.ui.textEdit_output.setText('\n請依照 google 驗證您要回覆留言的帳號\n進行 Oauth 驗證初始化作業...')
             try:
                 youtubeBot.OauthGoogleApi(Path_FileNames=self.fileList)
                 self.ui.textEdit_output.setText('\ntoken 生成成功\nThe authentication flow has completed. 身分驗證流程已完成.')
             except UnicodeDecodeError as error:
-                print(f'\nUnicodeDecode Error: {error}\n驗證失敗 ! 開啟檔案格式錯誤, 請開啟正確Oauth檔案\n')
+                print(f'\nUnicodeDecode Error: {error}\n驗證失敗 ! 開啟檔案格式錯誤, 請開啟json file 進行驗證\n')
                 self.ui.textEdit_output.setText('\nUnicodeDecode Error: {error}\n驗證失敗 ! 開啟檔案格式錯誤, 請開啟正確Oauth檔案\n')
             except:
                 print('程式執行異常, 請與工程師反映您方才的操作與結果.\nERROR：Oauth File Error')
@@ -87,47 +87,74 @@ class MainWindow_controller(QtWidgets.QMainWindow):
 
     def 判斷式(self):
         try:
+            print('try 判斷式')
             startNumber = self.ui.lineEditCode_1.text()  # 要回覆的top level comment起始編號.
             endNumber = self.ui.lineEditCode_2.text()  # 要回覆的top level comments 結尾編號.
 
             sleep = []  # 建立冷卻區間.
             change = []  # 建立更換json file區間.
-            totalNumber = startNumber - endNumber
+            totalNumber = int(endNumber) - int(startNumber)
+            print(f'執行總數: {totalNumber}')
             i = 0  # sleep 區間.
             x = 0  # change 區間.
-            while i != totalNumber:
+            while i != 86400:
                 i += 50
                 sleep.append(i)
 
-            while x != totalNumber:
+            while x != 86400:
                 x += 200
                 change.append(x)
 
             # print(f'--- sleep ---\n第一位:{sleep[0]}\n第二位:{sleep[1]}\n第三位:{sleep[2]}\n最後位:{sleep[-1]}\n')
             # print(f'--- change ---\n第一位:{change[0]}\n第二位:{change[1]}\n第三位:{change[2]}\n最後位:{change[-1]}')
 
+            self.ui.progressBar.setMaximum(totalNumber)  # setup 進度條
             y = 0  # json file 代號.
             for i in range(totalNumber):
-                print(f'i:{i}')
+                self.ui.progressBar.setValue(i)  # setup 進度條
+                # print(f'i:{i}')
+                print(f'總回覆數: {totalNumber}\n目前執行第: {i} 則留言')
                 if i in sleep:
+                    print(f'冷卻作業中, 預計冷卻{self.ui.lineEditSeconds_2.text()}秒')
                     self.ui.textEdit_output.setText(f'冷卻作業中, 預計冷卻{self.ui.lineEditSeconds_2.text()}秒')
                     time.sleep(self.ui.lineEditSeconds_2.text())
                     if i in change:
-                        client_secrets_file = self.fileList[y]
-                        self.ui.textEdit_output.setText(f'目前使用oauth file:{client_secrets_file[-7:]}')
-                        y += 1
-                        return client_secrets_file
+                        try:
+                            y += 1
+                            client_secrets_file = self.fileList[y]
+                            print(f'目前使用oauth file:{client_secrets_file[-7:]}')
+                            self.ui.textEdit_output.setText(f'目前使用oauth file: {client_secrets_file[-7:]}\n'
+                                                            f'總回覆數: {totalNumber}')
+                            return client_secrets_file
+                        except:
+                            # --- 若是json file 無法使用, 則使用下一個json file ---
+                            y += 1
+                            client_secrets_file = self.fileList[y]
+                            print(f'上個json file無法使用, 目前使用:{client_secrets_file[-7:]}')
+                            self.ui.textEdit_output.setText(f'上個json file無法使用, 目前使用:{client_secrets_file[-7:]}'
+                                                            f'總回覆數: {totalNumber}')
+                            return client_secrets_file
+                else:
+                    client_secrets_file = self.fileList[y]
+                    print(f'目前使用oauth file:{client_secrets_file[-7:]}')
+                    self.ui.textEdit_output.setText(f'目前使用oauth file: {client_secrets_file[-7:]}\n'
+                                                    f'總回覆數: {totalNumber}')
+                    return client_secrets_file
+            print('判斷式 確認執行成功')
+
         except:
             print('開啟的Oauth File不足, 程式已經暫停執行, ')
             self.ui.textEdit_output.setText(f'開啟的Oauth File不足, 程式已經暫停執行, ')
 
-    def execute(self):
-        article = self.ui.textEdit_article.toPlainText()          # offer 程式, 需要的文案.
-        fileList = self.fileList                                  # offer 程式, 需要的oauth file.
-        seconds_msgSleep = self.ui.lineEditSeconds_1.text()       # 每則訊息間隔秒數
-        seconds_programSleep = self.ui.lineEditSeconds_2.text()   # 冷卻時間秒數
-        startNumber = self.ui.lineEditCode_1.text()               # 要回覆的top level comment起始編號.
-        endNumber = self.ui.lineEditCode_2.text()                 # 要回覆的top level comments 結尾編號.
+    # main execute program function
+    def executeLoading(self):
+        # --- 定義user input ---
+        article = self.ui.textEdit_article.toPlainText()               # offer 程式, 需要的文案.
+        fileList = self.fileList                                       # offer 程式, 需要的oauth file.
+        seconds_msgSleep = int(self.ui.lineEditSeconds_1.text())       # 每則訊息間隔秒數
+        seconds_programSleep = int(self.ui.lineEditSeconds_2.text())   # 冷卻時間秒數
+        startNumber = int(self.ui.lineEditCode_1.text())               # 要回覆的top level comment起始編號.
+        endNumber = int(self.ui.lineEditCode_2.text())                 # 要回覆的top level comments 結尾編號.
 
         # --- 檢查user 輸入 ---
         if article == '':
@@ -151,76 +178,91 @@ class MainWindow_controller(QtWidgets.QMainWindow):
             self.ui.textEdit_output.setText('\n請輸入編號設定(起始 / 結束)...')
         else:
             # --- 開發過程檢查輸出使用 ---
-            self.ui.textEdit_output.setText(f'Article:\n{article}\n\n'
-                                            f'Seconds msgSleep: {seconds_msgSleep}\n\n'
-                                            f'Seconds programSleep: {seconds_programSleep}\n\n'
-                                            f'Start Number: {startNumber}\n\n'
-                                            f'End Number: {endNumber}\n\n'
-                                            f'File List:\n{fileList}\n\n')
+            # self.ui.textEdit_output.setText(f'Article:\n{article}\n\n'
+            #                                 f'Seconds msgSleep: {seconds_msgSleep}\n\n'
+            #                                 f'Seconds programSleep: {seconds_programSleep}\n\n'
+            #                                 f'Start Number: {startNumber}\n\n'
+            #                                 f'End Number: {endNumber}\n\n'
+            #                                 f'File List:\n{fileList}\n\n')
+            self.ui.textEdit_output.setText('\n送出執行！')
 
-            # self.ui.textEdit_output.setText('\n檢查完畢, 送出執行！')
+            # --- 檢查oauth file 是否充足 ---
+            totalNumber = endNumber - startNumber
+            needOauth = int(totalNumber / 200)
+            oauthFile = len(fileList)
 
-            # --- 送出執行 ---
-            # youtubeBot = insert_comments()
-            #
-            # try:
-            #     # --- executeFunction, readDatabase ---
-            #     youtubeBot.ReadSql_videoTopLevelComments_id(number1=startNumber, number2=endNumber)
-            #
-            #     # --- executeFunction, 判斷式_12hour ---
-            #     # client_secrets_files為呼叫youtube data api v3使用的東東,
-            #     # 因著我方需要根據程式使用狀況, 控制多個Oauth file,故撰寫成判斷式function,讓程式判斷各流程使用的 client_secrets_file
-            #
-            #     # --- offer 程式, 運作需要的oauth file ---
-            #     client_secrets_files = self.判斷式()
-            #
-            #     # Read id data through db according to the function 逐一進行 insert top level comments
-            #     # # youtube_spider.data from youtube_spider.ReadSql_videoTopLevelComments_id() read data
-            #     print(f'youtube_spider.data:{youtubeBot.data}')
-            #     for i in youtubeBot.data:
-            #         video_name = i[0]
-            #         video_id = i[1]
-            #         comment_ids = i[3]
-            #         author_display_name = i[4]
-            #         top_level_comments = i[5]
-            #
-            #         # insert top level comments
-            #         insert_info = youtubeBot.insertTopLevelComments(client_secrets_file=client_secrets_files,
-            #                                                         reply_article=article,
-            #                                                         top_level_comment_id=comment_ids)
-            #
-            #         # output insert top level comments 執行結果
-            #         # print(video_name, video_id, author_display_name)
-            #         # 初始化 sava data in DB, 整理並提取所需要的資料
-            #         youtubeBot.DataToDB_insert_comments(data=insert_info,
-            #                                             video_id=video_id,
-            #                                             video_name=video_name,
-            #                                             author_display_name=author_display_name,
-            #                                             top_level_comments=top_level_comments)
-            #
-            #         createData = youtubeBot.DataToDB_insert_comments(data=insert_info,
-            #                                                          video_id=video_id,
-            #                                                          video_name=video_name,
-            #                                                          author_display_name=author_display_name,
-            #                                                          top_level_comments=top_level_comments)
-            #
-            #         # 將整理好的 data 寫入資料庫
-            #         youtubeBot.save(createData, timeSleep=seconds_msgSleep)  # 設定for loop 休息秒數
-            #
-            # except TypeError as error:
-            #     print(f'Error:\n{error}')
-            #     self.ui.textEdit_output.setText(f'Error:\n{error}')
+            # 若需要的oauth file 數量計算為float, 則+1輸出為整數
+            if type(needOauth) == float:
+                needOauth = int(needOauth) + 1
+            else:
+                pass
+            # 判斷開啟的oauth file 數量是否符合
+            if oauthFile < needOauth:
+                self.ui.textEdit_output.setText(f'還需要 {needOauth - oauthFile} 個oauth file執行程式\n'
+                                                f'目前僅開啟 {len(fileList)} 個')
+                print(f'還需要{needOauth - oauthFile}個oauth file, 執行程式, 目前僅開啟{len(fileList)}個')
+                print(len(fileList))
 
-    # setup 進度條
-    def setupProgressBar(self):
-        maxValue = 100
-        self.ui.progressBar.setMaximum(maxValue)
+            else:
+                self.ui.textEdit_output.setText(f'數量充足')
+                print('oauth file 數量充足')
 
-        for i in range(maxValue):
-            time.sleep(0.05)
-            i += 1
-            self.ui.progressBar.setValue(i)
-            print(i)
+                # --- 送出執行 ---
+                youtubeBot = insert_comments()
+                self.oauth()
+
+                # try:
+                # --- executeFunction, readDatabase ---
+                youtubeBot.ReadSql_videoTopLevelComments_id(number1=startNumber, number2=endNumber)
+                print('資料庫讀取 成功')
+
+                # --- executeFunction, 判斷式 ---
+                # client_secrets_files 為呼叫 youtube data api v3需要使用的東東,
+                # 根據需求狀況, 需要控制多個Oauth file, 故撰寫成判斷式function,讓程式自主判斷各流程使用的 client_secrets_file與設定每則訊息間隔秒數
+                client_secrets_files = self.判斷式()
+                print('判斷式執行 成功')
+
+                # Read id data through db according to the function 逐一進行 insert top level comments
+                # # youtube_spider.data from youtube_spider.ReadSql_videoTopLevelComments_id() read data
+                print(f'youtube_spider.data:{youtubeBot.data}')
+                for i in youtubeBot.data:
+                    video_name = i[0]
+                    video_id = i[1]
+                    comment_ids = i[3]
+                    author_display_name = i[4]
+                    top_level_comments = i[5]
+
+                    # insert top level comments
+                    print(f'client_secrets_files:\n{client_secrets_files}')
+                    print(f'article:\n{article}')
+                    insert_info = youtubeBot.insertTopLevelComments(client_secrets_file=client_secrets_files,
+                                                                    reply_article=article,
+                                                                    top_level_comment_id=comment_ids)
+                    print('insert_info 成功')
+
+                    # output insert top level comments 執行結果
+                    # print(video_name, video_id, author_display_name)
+                    # 初始化 sava data in DB, 整理並提取所需要的資料
+                    youtubeBot.DataToDB_insert_comments(data=insert_info,
+                                                        video_id=video_id,
+                                                        video_name=video_name,
+                                                        author_display_name=author_display_name,
+                                                        top_level_comments=top_level_comments)
+                    print('DataToDB_insert_comments 成功')
+
+                    createData = youtubeBot.DataToDB_insert_comments(data=insert_info,
+                                                                     video_id=video_id,
+                                                                     video_name=video_name,
+                                                                     author_display_name=author_display_name,
+                                                                     top_level_comments=top_level_comments)
+
+                    # 將整理好的 data 寫入資料庫
+                    youtubeBot.save(createData, timeSleep=seconds_msgSleep)  # 設定for loop 休息秒數
+                    print('save成功')
+
+                # except TypeError as error:
+                #     print(f'Error:\n{error}')
+                #     self.ui.textEdit_output.setText(f'Error:\n{error}')
 
 
 # main class_insert top level comments
@@ -246,7 +288,7 @@ class insert_comments:
         cursor = connection.cursor()
 
         # 抓取MySQL table_video底下的top_level_comment_id
-        # cursor.execute(f'select * from top_level_comment where comment_number between {number1} and {number2};')  # 查詢第100筆~第200筆留言
+        # cursor.execute(f'select * from top_level_comment where comment_number between {number1} and {number2};')  # 查詢第x筆~第y筆留言
 
         # 測試使用資料庫
         cursor.execute(f'select * from top_level_comments_20220418 where comment_number between {number1} and {number2};')  # 查詢第100筆~第200筆留言
@@ -275,7 +317,7 @@ class insert_comments:
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
         try:
-            print('驗證作業中')
+            # --- 驗證作業中 ---
             FileNames = Path_FileNames
             for i in FileNames:
                 # print(i)  # print USE FileNames
@@ -319,7 +361,7 @@ class insert_comments:
         # it's google YouTube API 規矩下的產物，it's google account in gcp 開通 api key, oauth, 產生的 json.
 
         # 套件套件定義
-        print('--- 開始自動化留言作業 ---')
+        print('--- 自動化留言作業 ---')
         # os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
         try:
@@ -374,6 +416,13 @@ class insert_comments:
             if not insert_comment_google_account:
                 insert_comment_google_account = ''
 
+            # # --- output 回覆過程 ---
+            # MainWindow_controller.ui.textEdit_output.setText(f'影片:{video_name}'
+            #                                                  f'作者:{author_display_name}'
+            #                                                  f'留言:{top_level_comments}'
+            #                                                  f'回覆帳號:{insert_comment_google_account}',
+            #                                                  '回覆留言:', data_item['textOriginal'])
+
             # 撰寫 寫入db 的 reply_top_level_comment
             comments.append([
                 video_name,
@@ -388,6 +437,7 @@ class insert_comments:
 
         print('--- comments ---')
         print(comments)
+
         return comments
 
     def save(self, comments, timeSleep):
