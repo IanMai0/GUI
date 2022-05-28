@@ -14,6 +14,21 @@ import pickle
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 
+# 測試規則：
+# 1個帳號50秒回覆50則留言
+# 冷卻時間120分鐘(7200秒)
+# 一天約撒600則留言
+# 一台電腦最多八開=一天4800留言
+# 一週33600，抓1%，=336
+# 現有24個帳號，336*3=一週一千
+
+# 測試需求：
+# 帳號* 8 , 預計每帳號留言600則回覆,
+# 每200則回覆消耗1個oauth file, 一個帳號一天需要 3 個oauth file
+# 秒數設定(訊息間隔/冷卻秒數), 1 / 7200秒
+# oauth file, 每個帳號開啟3個oauth file
+# 編號設定(起始/結束) x - x+600
+
 
 class MainWindow_controller(QtWidgets.QMainWindow):
     def __init__(self):
@@ -21,7 +36,7 @@ class MainWindow_controller(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setup_control()
-        self.fileList = []
+        self.fileList = []  # 用以收集user use oauth file.
 
     def setup_control(self):
         # --- setup GUI title ---
@@ -49,8 +64,8 @@ class MainWindow_controller(QtWidgets.QMainWindow):
         font.setPointSize(12)
         self.ui.textEdit_output.setFont(font)
 
-        # --- 定義regex ---
-        comp = re.compile('[0-9][0-9].json')
+        # --- use regex 規定json file 格式 ---
+        comp = re.compile('[0-9][0-9].json')  # file name: "01.json"
 
         try:
             # 判斷開啟檔案是否為'.json', 若是, 加入list return 程式
@@ -176,22 +191,16 @@ class MainWindow_controller(QtWidgets.QMainWindow):
             self.ui.textEdit_output.setText('\n請輸入編號設定(結束)...')
         elif startNumber and endNumber == '':
             self.ui.textEdit_output.setText('\n請輸入編號設定(起始 / 結束)...')
+        # --- 若通過程式上述檢查, execute the program ---
         else:
-            # --- 開發過程檢查輸出使用 ---
-            # self.ui.textEdit_output.setText(f'Article:\n{article}\n\n'
-            #                                 f'Seconds msgSleep: {seconds_msgSleep}\n\n'
-            #                                 f'Seconds programSleep: {seconds_programSleep}\n\n'
-            #                                 f'Start Number: {startNumber}\n\n'
-            #                                 f'End Number: {endNumber}\n\n'
-            #                                 f'File List:\n{fileList}\n\n')
             self.ui.textEdit_output.setText('\n送出執行！')
 
-            # --- 檢查oauth file 是否充足 ---
+            # --- 檢查 user input oauth file 是否符合需求 ---
             totalNumber = endNumber - startNumber
             needOauth = int(totalNumber / 200)
             oauthFile = len(fileList)
 
-            # 若需要的oauth file 數量計算為float, 則+1輸出為整數
+            # 若oauth file 需求數量計算為type(float), 則+1輸出為int()
             if type(needOauth) == float:
                 needOauth = int(needOauth) + 1
             else:
@@ -202,7 +211,7 @@ class MainWindow_controller(QtWidgets.QMainWindow):
                                                 f'目前僅開啟 {len(fileList)} 個')
                 print(f'還需要{needOauth - oauthFile}個oauth file, 執行程式, 目前僅開啟{len(fileList)}個')
                 print(len(fileList))
-
+            # --- user use oauthFile 充足, execute program ---
             else:
                 self.ui.textEdit_output.setText(f'數量充足')
                 print('oauth file 數量充足')
@@ -211,58 +220,58 @@ class MainWindow_controller(QtWidgets.QMainWindow):
                 youtubeBot = insert_comments()
                 self.oauth()
 
-                # try:
-                # --- executeFunction, readDatabase ---
-                youtubeBot.ReadSql_videoTopLevelComments_id(number1=startNumber, number2=endNumber)
-                print('資料庫讀取 成功')
+                try:
+                    # --- executeFunction, readDatabase ---
+                    youtubeBot.ReadSql_videoTopLevelComments_id(number1=startNumber, number2=endNumber)
+                    print('資料庫讀取 成功')
 
-                # --- executeFunction, 判斷式 ---
-                # client_secrets_files 為呼叫 youtube data api v3需要使用的東東,
-                # 根據需求狀況, 需要控制多個Oauth file, 故撰寫成判斷式function,讓程式自主判斷各流程使用的 client_secrets_file與設定每則訊息間隔秒數
-                client_secrets_files = self.判斷式()
-                print('判斷式執行 成功')
+                    # --- executeFunction, 判斷式 ---
+                    # client_secrets_files 為呼叫 youtube data api v3需要使用的東東,
+                    # 根據需求狀況, 需要控制多個Oauth file, 故撰寫成判斷式function,讓程式自主判斷各流程使用的 client_secrets_file與設定每則訊息間隔秒數
+                    client_secrets_files = self.判斷式()
+                    print('判斷式執行 成功')
 
-                # Read id data through db according to the function 逐一進行 insert top level comments
-                # # youtube_spider.data from youtube_spider.ReadSql_videoTopLevelComments_id() read data
-                print(f'youtube_spider.data:{youtubeBot.data}')
-                for i in youtubeBot.data:
-                    video_name = i[0]
-                    video_id = i[1]
-                    comment_ids = i[3]
-                    author_display_name = i[4]
-                    top_level_comments = i[5]
+                    # Read id data through db according to the function 逐一進行 insert top level comments
+                    # # youtube_spider.data from youtube_spider.ReadSql_videoTopLevelComments_id() read data
+                    print(f'youtube_spider.data:{youtubeBot.data}')
+                    for i in youtubeBot.data:
+                        video_name = i[0]
+                        video_id = i[1]
+                        comment_ids = i[3]
+                        author_display_name = i[4]
+                        top_level_comments = i[5]
 
-                    # insert top level comments
-                    print(f'client_secrets_files:\n{client_secrets_files}')
-                    print(f'article:\n{article}')
-                    insert_info = youtubeBot.insertTopLevelComments(client_secrets_file=client_secrets_files,
-                                                                    reply_article=article,
-                                                                    top_level_comment_id=comment_ids)
-                    print('insert_info 成功')
+                        # insert top level comments
+                        print(f'client_secrets_files:\n{client_secrets_files}')
+                        print(f'article:\n{article}')
+                        insert_info = youtubeBot.insertTopLevelComments(client_secrets_file=client_secrets_files,
+                                                                        reply_article=article,
+                                                                        top_level_comment_id=comment_ids)
+                        print('insert_info 成功')
 
-                    # output insert top level comments 執行結果
-                    # print(video_name, video_id, author_display_name)
-                    # 初始化 sava data in DB, 整理並提取所需要的資料
-                    youtubeBot.DataToDB_insert_comments(data=insert_info,
-                                                        video_id=video_id,
-                                                        video_name=video_name,
-                                                        author_display_name=author_display_name,
-                                                        top_level_comments=top_level_comments)
-                    print('DataToDB_insert_comments 成功')
+                        # output insert top level comments 執行結果
+                        # print(video_name, video_id, author_display_name)
+                        # 初始化 sava data in DB, 整理並提取所需要的資料
+                        youtubeBot.DataToDB_insert_comments(data=insert_info,
+                                                            video_id=video_id,
+                                                            video_name=video_name,
+                                                            author_display_name=author_display_name,
+                                                            top_level_comments=top_level_comments)
+                        print('DataToDB_insert_comments 成功')
 
-                    createData = youtubeBot.DataToDB_insert_comments(data=insert_info,
-                                                                     video_id=video_id,
-                                                                     video_name=video_name,
-                                                                     author_display_name=author_display_name,
-                                                                     top_level_comments=top_level_comments)
+                        createData = youtubeBot.DataToDB_insert_comments(data=insert_info,
+                                                                         video_id=video_id,
+                                                                         video_name=video_name,
+                                                                         author_display_name=author_display_name,
+                                                                         top_level_comments=top_level_comments)
 
-                    # 將整理好的 data 寫入資料庫
-                    youtubeBot.save(createData, timeSleep=seconds_msgSleep)  # 設定for loop 休息秒數
-                    print('save成功')
+                        # 將整理好的 data 寫入資料庫
+                        youtubeBot.save(createData, timeSleep=seconds_msgSleep)  # 設定for loop 休息秒數
+                        print('save成功')
 
-                # except TypeError as error:
-                #     print(f'Error:\n{error}')
-                #     self.ui.textEdit_output.setText(f'Error:\n{error}')
+                except TypeError as error:
+                    print(f'Error:\n{error}')
+                    self.ui.textEdit_output.setText(f'Error:\n{error}')
 
 
 # main class_insert top level comments
@@ -288,10 +297,10 @@ class insert_comments:
         cursor = connection.cursor()
 
         # 抓取MySQL table_video底下的top_level_comment_id
-        # cursor.execute(f'select * from top_level_comment where comment_number between {number1} and {number2};')  # 查詢第x筆~第y筆留言
+        cursor.execute(f'select * from top_level_comment where comment_number between {number1} and {number2};')  # 查詢第x筆~第y筆留言
 
         # 測試使用資料庫
-        cursor.execute(f'select * from top_level_comments_20220418 where comment_number between {number1} and {number2};')  # 查詢第100筆~第200筆留言
+        # cursor.execute(f'select * from top_level_comments_20220418 where comment_number between {number1} and {number2};')  # 查詢第100筆~第200筆留言
 
         records = cursor.fetchall()
         self.data = cursor.fetchall()
@@ -386,9 +395,9 @@ class insert_comments:
                 }
             )
             response = request.execute()
-            print(f'response: {response}')
 
-            # response to list(data)
+            # print(f'response: {response}')
+            # # response to list(data)
             # data = []
             # data.append(response)
             data = [response]
@@ -435,8 +444,11 @@ class insert_comments:
                 time_  # reply time
             ])
 
-        print('--- comments ---')
-        print(comments)
+        print('\n--- comments ---')
+        print(f'影片:\n{comments[video_name]}\n'
+              f'留言:{comments[top_level_comments]}\n'
+              f'回覆:{comments[-2]}\n'
+              f'回覆帳號:{comments[-3]}')
 
         return comments
 
@@ -453,9 +465,10 @@ class insert_comments:
             conn = pymysql.connect(**db_settings)
 
             with conn.cursor() as cursor:
-                # 測試用資料庫 test_20220114
-                # sql = """INSERT INTO insert_top_level_comments(
-                sql = """INSERT INTO insert_20220418(
+                # --- 測試使用資料庫 ---
+                # sql = """INSERT INTO insert_20220418(
+                # --- 正式使用資料庫 ---
+                sql = """INSERT INTO insert_top_level_comments(
                         video_name,
                         video_id,
                         top_level_comment_ids,
